@@ -1,0 +1,14 @@
+.env
+.vscode/
+.python-version
+
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.DS_Store
+
+
+/logs
+node_modules/

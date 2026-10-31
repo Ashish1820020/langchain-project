@@ -1,0 +1,13 @@
+git --version
+uv --version
+
+uv python install 3.12
+
+uv add -r requirements.txt
+uv add --dev pytest==8.4.2 httpx==0.28.1
+
+
+
+mkdir -p backend/{agent,api,config,logger,rag,tests}
+
+touch backend/{agent,api,config,logger,rag,tests}/__init__.py
