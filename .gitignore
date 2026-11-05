@@ -11,7 +11,10 @@ venv/
 
 
 /logs
+backend/logs/
 node_modules/
 
+# Chroma vector database cache
+.meridian/
 
 .claude/
