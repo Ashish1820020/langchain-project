@@ -1,6 +1,17 @@
-import React, { useState } from "react";
-import { Search, Send, Sparkles, MessageSquare, Clock, Trash2 } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Search, Send, Sparkles, MessageSquare, Clock, Trash2, Bot } from "lucide-react";
 import { askQuestion } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
+
+type RetrieverType = "similarity" | "contextual" | "multiquery";
+
+const RETRIEVER_OPTIONS: { id: RetrieverType; label: string }[] = [
+  { id: "similarity", label: "Normal" },
+  { id: "contextual", label: "Contextual Compression" },
+  { id: "multiquery", label: "Multi-Query" },
+];
 
 const EXAMPLE_QUERIES = [
   "What is Aldermoor Industries total revenue in FY2024?",
@@ -16,11 +27,53 @@ interface HistoryEntry {
   ts: number;
 }
 
+function ThinkingIndicator() {
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="w-[min(30rem,100%)] rounded-2xl rounded-tl-sm border border-border/50 bg-muted/30 px-5 py-4"
+    >
+      <div className="mb-3 flex items-center gap-3">
+        <span className="flex h-5 items-center gap-[3px]" aria-hidden="true">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              className="eq-bar h-full w-[3px] rounded-full bg-gradient-to-t from-primary to-accent"
+              style={{ animationDelay: `${i * 0.12}s` }}
+            />
+          ))}
+        </span>
+        <span className="text-sm text-muted-foreground">Searching documents and writing an answer…</span>
+        <span className="ml-auto text-xs tabular-nums text-muted-foreground/70">{seconds}s</span>
+      </div>
+      <div className="space-y-2" aria-hidden="true">
+        <div className="skeleton-sweep h-2.5 w-[92%] rounded-full" />
+        <div className="skeleton-sweep h-2.5 w-[78%] rounded-full [animation-delay:150ms]" />
+        <div className="skeleton-sweep h-2.5 w-[56%] rounded-full [animation-delay:300ms]" />
+      </div>
+    </div>
+  );
+}
+
 export default function RagQATab() {
   const [query, setQuery] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [retrieverType, setRetrieverType] = useState<"similarity" | "contextual" | "multiquery">("similarity");
+  const [retrieverType, setRetrieverType] = useState<RetrieverType>("similarity");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [history]);
 
   const handleAsk = async (q?: string) => {
     const text = (q || query).trim();
@@ -28,13 +81,13 @@ export default function RagQATab() {
     setQuery("");
     setLoading(true);
     const entry: HistoryEntry = { query: text, answer: null, error: null, ts: Date.now() };
-    setHistory((prev) => [entry, ...prev]);
+    setHistory((prev) => [...prev, entry]);
 
     try {
       const res = await askQuestion(text, retrieverType);
       setHistory((prev) => prev.map((h) => (h.ts === entry.ts ? { ...h, answer: res.answer } : h)));
-    } catch (err: any) {
-      setHistory((prev) => prev.map((h) => (h.ts === entry.ts ? { ...h, error: err.message } : h)));
+    } catch (err) {
+      setHistory((prev) => prev.map((h) => (h.ts === entry.ts ? { ...h, error: getErrorMessage(err) } : h)));
     } finally {
       setLoading(false);
     }
@@ -45,7 +98,7 @@ export default function RagQATab() {
       {/* Top Row: Query Input & Example Queries */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Knowledge Query - 75% width */}
-        <div className="lg:col-span-3 rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="lg:col-span-3 rounded-xl border border-border bg-card/80 p-6 shadow-sm">
           <div className="flex items-center gap-2.5 mb-1">
             <Search className="w-[18px] h-[18px] text-primary" />
             <h2 className="text-base font-semibold font-heading text-card-foreground">Knowledge Query</h2>
@@ -57,14 +110,10 @@ export default function RagQATab() {
           <div className="mb-5 space-y-2">
             <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Retrieval Strategy</label>
             <div className="flex bg-muted/30 p-1 rounded-lg border border-border">
-              {[
-                { id: "similarity", label: "Normal" },
-                { id: "contextual", label: "Contextual Compression" },
-                { id: "multiquery", label: "Multi-Query" }
-              ].map(type => (
+              {RETRIEVER_OPTIONS.map(type => (
                 <button
                   key={type.id}
-                  onClick={() => setRetrieverType(type.id as any)}
+                  onClick={() => setRetrieverType(type.id)}
                   className={`flex-1 text-xs font-medium py-2 rounded-md transition-all ${retrieverType === type.id ? 'bg-background shadow-sm text-foreground font-semibold border border-border/50' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                   {type.label}
@@ -98,7 +147,7 @@ export default function RagQATab() {
         </div>
 
         {/* Example queries - Remaining space, vertical order */}
-        <div className="lg:col-span-1 rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="lg:col-span-1 rounded-xl border border-border bg-card/80 p-6 shadow-sm">
           <div className="flex items-center gap-2.5 mb-4">
             <Sparkles className="w-[18px] h-[18px] text-accent" />
             <h2 className="text-base font-semibold font-heading text-card-foreground">Query Assistant</h2>
@@ -120,12 +169,12 @@ export default function RagQATab() {
 
       {/* Bottom Row: Answer History */}
       <div className="w-full">
-        <div className="rounded-lg border border-border bg-card p-6 flex flex-col shadow-sm" style={{ minHeight: 300 }}>
+        <div className="rounded-xl border border-border bg-card/80 p-6 flex flex-col shadow-sm" style={{ minHeight: 300 }}>
           <div className="flex items-center justify-between mb-4 pb-4 border-b">
             <div className="flex items-center gap-2.5">
               <Clock className="w-[18px] h-[18px] text-muted-foreground" />
               <h2 className="text-base font-semibold font-heading text-card-foreground">Answers</h2>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{history.length} queries in this session</span>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{history.length} {history.length === 1 ? "query" : "queries"} in this session</span>
             </div>
             {history.length > 0 && (
               <button
@@ -137,7 +186,7 @@ export default function RagQATab() {
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto max-h-[640px] pr-2 custom-scrollbar">
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full py-20 text-muted-foreground">
                 <Search className="w-12 h-12 mb-4 opacity-10" />
@@ -145,35 +194,44 @@ export default function RagQATab() {
                 <p className="text-xs opacity-60">Your question history will appear here</p>
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {history.map((h) => (
-                  <div key={h.ts} className="animate-fade-in border-b border-border/50 pb-6 last:border-0 last:pb-0">
-                    <div className="flex items-start gap-3 mb-4">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0 mt-0.5">
-                        <MessageSquare className="w-4 h-4" />
+                  <div key={h.ts} className="space-y-4 animate-fade-in">
+                    {/* Question: right side */}
+                    <div className="flex flex-col items-end gap-1">
+                      <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl rounded-br-sm bg-primary/15 border border-primary/25 px-4 py-2.5">
+                        <p className="text-sm text-card-foreground leading-relaxed whitespace-pre-wrap break-words">{h.query}</p>
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-card-foreground leading-relaxed">{h.query}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-tighter">Query Time: {new Date(h.ts).toLocaleTimeString()}</p>
+                      <span className="text-[10px] text-muted-foreground/70 pr-1">{new Date(h.ts).toLocaleTimeString()}</span>
+                    </div>
+
+                    {/* Answer: left side */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center shrink-0 shadow-md shadow-primary/20">
+                        <Bot className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 max-w-[95%] sm:max-w-[85%]">
+                        {h.answer ? (
+                          <div className="rounded-2xl rounded-tl-sm bg-muted/40 border border-border/60 px-5 py-4 shadow-sm">
+                            <div className="prose prose-sm prose-invert max-w-none break-words
+                              prose-headings:font-heading prose-headings:text-card-foreground prose-headings:mt-4 prose-headings:mb-2 first:prose-headings:mt-0
+                              prose-p:my-2 prose-p:leading-relaxed prose-li:my-0.5 prose-ul:my-2 prose-ol:my-2
+                              prose-strong:text-card-foreground prose-hr:my-4 prose-hr:border-border
+                              prose-a:text-primary prose-code:text-primary prose-code:before:content-none prose-code:after:content-none
+                              prose-th:text-card-foreground prose-table:text-xs">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{h.answer}</ReactMarkdown>
+                            </div>
+                          </div>
+                        ) : h.error ? (
+                          <div className="rounded-2xl rounded-tl-sm p-4 bg-destructive/5 border border-destructive/20">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive mb-1">Error</p>
+                            <p className="text-sm text-destructive break-words">{h.error}</p>
+                          </div>
+                        ) : (
+                          <ThinkingIndicator />
+                        )}
                       </div>
                     </div>
-                    {h.answer ? (
-                      <div className="ml-11 p-5 rounded-xl bg-muted/40 border border-border/50 shadow-sm relative group overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-primary/20 group-hover:bg-primary/50 transition-colors" />
-                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/70 mb-3 ml-1">Verified Answer</p>
-                        <p className="text-sm text-card-foreground leading-relaxed whitespace-pre-wrap">{h.answer}</p>
-                      </div>
-                    ) : h.error ? (
-                      <div className="ml-11 p-4 rounded-lg bg-destructive/5 border border-destructive/20">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-destructive mb-2">Error Encountered</p>
-                        <p className="text-sm text-destructive">{h.error}</p>
-                      </div>
-                    ) : (
-                      <div className="ml-11 flex items-center gap-3 text-sm text-muted-foreground p-4 bg-muted/20 rounded-lg animate-pulse">
-                        <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                        Intelligence agents are synthesising context and generating an answer…
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>

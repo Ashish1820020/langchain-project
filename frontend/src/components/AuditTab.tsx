@@ -13,6 +13,7 @@ import {
   Activity,
 } from "lucide-react";
 import { runAudit } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,8 +80,8 @@ export default function AuditTab() {
       ]);
       setMemo(data.cfo_memo);
       setExpandedPhase("CFO Synthesis");
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(getErrorMessage(err));
       setPhases((p) => p.map((ph) => (ph.status === "running" ? { ...ph, status: "error" } : ph)));
     } finally {
       clearTimeout(timer1);
@@ -108,13 +109,13 @@ export default function AuditTab() {
       {/* ── Row 1: Input ────────────────────────────────────── */}
       <Card className="shadow-md">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-accent/10 shadow-sm">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary/20 to-accent/10 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="text-lg">Procurement Audit</CardTitle>
+                <CardTitle className="text-lg">Purchase Request</CardTitle>
                 <CardDescription>Aldermoor Industries — Risk · Tax & Treasury · IFRS Control · CFO Audit Memorandum</CardDescription>
               </div>
             </div>

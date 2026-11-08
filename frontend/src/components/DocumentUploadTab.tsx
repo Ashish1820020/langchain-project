@@ -14,6 +14,7 @@ import {
   Database,
 } from "lucide-react";
 import { uploadDocument, triggerStoreIngestion, getSystemStatus, type SystemStatus } from "@/lib/api";
+import { getErrorMessage } from "@/lib/utils";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return bytes + " B";
@@ -100,8 +101,8 @@ export default function DocumentUploadTab() {
         } else {
           setFileStatus(staged.file.name, { state: "error", reason: "Unknown status." });
         }
-      } catch (err: any) {
-        setFileStatus(staged.file.name, { state: "error", reason: err.message });
+      } catch (err) {
+        setFileStatus(staged.file.name, { state: "error", reason: getErrorMessage(err) });
       }
     }
   };
@@ -118,24 +119,17 @@ export default function DocumentUploadTab() {
     try {
       const data = await triggerStoreIngestion();
       setGcsResult({ ok: true, message: data.status });
-    } catch (err: any) {
-      setGcsResult({ ok: false, message: err.message });
+    } catch (err) {
+      setGcsResult({ ok: false, message: getErrorMessage(err) });
     } finally {
       setGcsLoading(false);
     }
   };
 
   return (
-    <div className="max-w-4xl mx-auto animate-fade-in space-y-6">
+    <div className="max-w-4xl animate-fade-in space-y-6">
       {/* Header & Tabs */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold font-heading text-card-foreground">Document Ingestion</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Populate the Aldermoor procurement knowledge base — supplier contracts, tariff schedules, IFRS reports, and compliance policies.
-          </p>
-        </div>
-
+      <div className="flex justify-start">
         <div className="flex bg-muted/50 p-1 rounded-xl border border-border w-fit">
           <button
             onClick={() => setActiveTab("local")}
@@ -218,7 +212,7 @@ export default function DocumentUploadTab() {
                           className={`flex items-center gap-3 p-4 rounded-xl border transition-all duration-300
                             ${status.state === "done"    ? "border-success/30 bg-success/5"
                             : status.state === "error"   ? "border-destructive/30 bg-destructive/5"
-                            : status.state === "skipped" ? "border-amber-500/30 bg-amber-500/5"
+                            : status.state === "skipped" ? "border-warning/30 bg-warning/5"
                             : status.state === "uploading"? "border-primary/30 bg-primary/5 shadow-inner"
                             : "border-border bg-card hover:bg-muted/20"}`}
                         >
@@ -227,7 +221,7 @@ export default function DocumentUploadTab() {
                             {status.state === "idle"      && <FileText className="w-5 h-5 text-muted-foreground" />}
                             {status.state === "uploading" && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
                             {status.state === "done"      && <CheckCircle className="w-5 h-5 text-success" />}
-                            {status.state === "skipped"   && <AlertTriangle className="w-5 h-5 text-amber-500" />}
+                            {status.state === "skipped"   && <AlertTriangle className="w-5 h-5 text-warning" />}
                             {status.state === "error"     && <XCircle className="w-5 h-5 text-destructive" />}
                           </div>
 
@@ -243,7 +237,7 @@ export default function DocumentUploadTab() {
                                   <span className="text-success">{status.chunks} chunks indexed</span>
                                 </>
                               )}
-                              {status.state === "skipped" && <span className="text-amber-600">{status.reason}</span>}
+                              {status.state === "skipped" && <span className="text-warning">{status.reason}</span>}
                               {status.state === "error" && <span className="text-destructive font-medium">{status.reason}</span>}
                             </p>
                           </div>
@@ -253,7 +247,7 @@ export default function DocumentUploadTab() {
                               ${status.state === "idle"      ? "bg-muted text-muted-foreground"
                               : status.state === "uploading" ? "bg-primary/20 text-primary"
                               : status.state === "done"      ? "bg-success/20 text-success"
-                              : status.state === "skipped"   ? "bg-amber-500/20 text-amber-600"
+                              : status.state === "skipped"   ? "bg-warning/20 text-warning"
                               : "bg-destructive/20 text-destructive"}`}>
                               {status.state === "uploading" ? "running" : status.state}
                             </span>
